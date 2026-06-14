@@ -1,1 +1,815 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>StarDance NASA Edition</title>
+<style>
+body{margin:0;overflow:hidden;background:#000;font-family:Arial,sans-serif}
+#ui{
+position:absolute;left:15px;top:15px;width:320px;z-index:10;
+background:rgba(0,0,0,.65);color:white;padding:18px;border-radius:18px;
+backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.15)
+}
+h1{margin:0}
+.subtitle{color:#bbb;margin-bottom:10px}
+input,button{width:100%}
+button{padding:10px;border:none;border-radius:10px;cursor:pointer}
+#facts{line-height:1.6}
+#flash{position:fixed;inset:0;pointer-events:none;background:#ffffff;opacity:0;mix-blend-mode:screen;z-index:9999}
+#showAGN{display:none;margin-top:8px;background:linear-gradient(90deg,#22284a,#30408a);border-radius:10px;padding:8px;color:white}
+#infoBtn{display:inline-block;margin-top:8px;margin-left:6px;background:linear-gradient(90deg,#2a2a2a,#444);border-radius:10px;padding:8px;color:white}
 
+/* Info panel */
+#infoPanel{position:fixed;right:20px;bottom:20px;width:360px;max-height:70vh;overflow:auto;background:rgba(8,12,20,0.95);color:#e6eefc;padding:16px;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,0.6);display:none;z-index:9999}
+#infoPanel h2{margin:0 0 8px 0;font-size:16px}
+#infoPanel p{margin:6px 0;line-height:1.4;color:#cfe3ff}
+#infoPanel .controls{display:flex;gap:8px;margin-top:10px}
+#infoPanel button{flex:1;padding:8px;border-radius:8px;border:none;cursor:pointer}
+</style>
+</head>
+<body>
+<script type="importmap">
+{
+	"imports": {
+		"three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+	}
+}
+</script>
+<div id="ui">
+<h1> StarDance</h1>
+<div class="subtitle">Milky Way + Andromeda Future Merger</div>
+<label>Time Through Merger</label>
+<input id="epoch" type="range" min="0" max="4.5" step="0.01" value="0">
+<div id="epochLabel">0.00 Billion Years</div>
+<hr>
+<div id="facts"></div>
+<hr>
+<button id="tour">🎥 Cinematic Tour</button>
+<button id="showAGN">🌑 Show SMBH / AGN</button>
+<button id="infoBtn">ℹ️ Info</button>
+</div>
+<div id="flash"></div>
+<div id="infoPanel" role="dialog" aria-label="Merger information">
+	<h2>StarDance — Merger Summary</h2>
+	<div id="infoContent">
+		<p>Loading...</p>
+	</div>
+	<div style="margin-top:8px">
+		<label for="languageSelect" style="font-size:12px;color:#9fbff6;display:block;margin-bottom:6px">Narration language</label>
+		<select id="languageSelect" style="width:100%;padding:8px;border-radius:8px;background:#0b1220;color:#e6eefc;border:none">
+			<option value="en">English</option>
+			<option value="es">Español</option>
+			<option value="fr">Français</option>
+			<option value="de">Deutsch</option>
+		</select>
+	</div>
+	<div style="margin-top:8px">
+		<label for="voiceSelect" style="font-size:12px;color:#9fbff6;display:block;margin-bottom:6px">Narrator voice</label>
+		<select id="voiceSelect" style="width:100%;padding:8px;border-radius:8px;background:#0b1220;color:#e6eefc;border:none"></select>
+	</div>
+	<div class="controls">
+		<button id="narrateBtn">🔊 Narrate</button>
+		<button id="closeInfo">Close</button>
+	</div>
+</div>
+<script type="module">
+import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+import {OrbitControls} from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+import {EffectComposer} from 'https://unpkg.com/three@0.160.0/examples/jsm/postprocessing/EffectComposer.js';
+import {RenderPass} from 'https://unpkg.com/three@0.160.0/examples/jsm/postprocessing/RenderPass.js';
+import {UnrealBloomPass} from 'https://unpkg.com/three@0.160.0/examples/jsm/postprocessing/UnrealBloomPass.js';
+const DATA={
+milkyWayDiameter:105700,
+andromedaDiameter:220000,
+currentDistance:2537000,
+mergerTime:4.5,
+approachVelocity:110
+};
+const SCALE=.003;
+const MW_RADIUS=DATA.milkyWayDiameter*SCALE;
+const M31_RADIUS=DATA.andromedaDiameter*SCALE;
+const START_DISTANCE=DATA.currentDistance*SCALE;
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x000000);
+const camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,.1,100000);
+camera.position.set(0,800,3500);
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(innerWidth,innerHeight);
+renderer.setPixelRatio(devicePixelRatio);
+document.body.appendChild(renderer.domElement);
+const controls=new OrbitControls(camera,renderer.domElement);
+controls.enableDamping=true;
+const composer=new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene,camera));
+const bloom=new UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight),1.2,.5,.7);
+composer.addPass(bloom);
+function starColor(){
+const r=Math.random();
+if(r<0.01)return 0x9bb0ff;
+if(r<0.03)return 0xaabfff;
+if(r<0.09)return 0xcad7ff;
+if(r<0.20)return 0xf8f7ff;
+if(r<0.50)return 0xfff4ea;
+if(r<0.80)return 0xffddb4;
+return 0xffbd6f;
+}
+function makeSprite(){
+const size=64;
+const canvas=document.createElement('canvas');
+canvas.width=size;canvas.height=size;
+const ctx=canvas.getContext('2d');
+const grad=ctx.createRadialGradient(size/2,size/2,0,size/2,size/2,size/2);
+grad.addColorStop(0,'rgba(255,255,255,1)');
+grad.addColorStop(0.2,'rgba(200,220,255,0.9)');
+grad.addColorStop(0.4,'rgba(180,190,255,0.6)');
+grad.addColorStop(1,'rgba(0,0,0,0)');
+ctx.fillStyle=grad;ctx.fillRect(0,0,size,size);
+const tx=new THREE.CanvasTexture(canvas);
+tx.minFilter=THREE.LinearFilter;tx.generateMipmaps=false;
+return tx;
+}
+
+function createGalaxy(radius,count=30000){
+const group=new THREE.Group();
+const sprite=makeSprite();
+const arms=4;
+function createLayer(layerCount,size,opacity,spread){
+const pos=new Float32Array(layerCount*3);
+const col=new Float32Array(layerCount*3);
+for(let i=0;i<layerCount;i++){
+const i3=i*3;
+const r=Math.pow(Math.random(),0.75)*radius;
+const arm=(i%arms)*(Math.PI*2/arms);
+const twist=r*0.02*(0.8+Math.random()*0.8);
+const angle=arm+twist+(Math.random()-0.5)*0.3;
+pos[i3]=Math.cos(angle)*r + (Math.random()-0.5)*spread;
+pos[i3+1]=(Math.random()-.5)*12;
+pos[i3+2]=Math.sin(angle)*r + (Math.random()-0.5)*spread;
+const c=new THREE.Color(starColor());
+col[i3]=c.r;col[i3+1]=c.g;col[i3+2]=c.b;
+}
+const g=new THREE.BufferGeometry();
+g.setAttribute('position',new THREE.BufferAttribute(pos,3));
+g.setAttribute('color',new THREE.BufferAttribute(col,3));
+const mat=new THREE.PointsMaterial({
+map:sprite,
+size:size,
+vertexColors:true,
+transparent:true,
+opacity:opacity,
+blending:THREE.AdditiveBlending,
+depthWrite:false,
+sizeAttenuation:true
+});
+const points=new THREE.Points(g,mat);
+points.frustumCulled = false;
+group.add(points);
+// ensure the group and its children are not frustum-culled when overlapping
+group.traverse((c)=>{ if(c.isPoints || c.isMesh){ c.frustumCulled=false; if(c.material){ c.material.depthWrite=false; c.material.depthTest=true; } } });
+return group;
+}
+
+// layered approach: many small, fewer medium, tiny bright cores
+createLayer(Math.floor(count*0.75),1.2,0.6,6);
+createLayer(Math.floor(count*0.22),2.4,0.75,18);
+createLayer(Math.max(200,Math.floor(count*0.03)),4.0,0.9,30);
+
+scene.add(group);
+return group;
+}
+function createHalo(radius){
+	// soft sprite-based halo to avoid depth clipping with galaxy geometry
+	const size = Math.max(256, Math.floor(radius * 6));
+	const canvas = document.createElement('canvas');
+	canvas.width = size; canvas.height = size;
+	const ctx = canvas.getContext('2d');
+	const grad = ctx.createRadialGradient(size/2,size/2,0,size/2,size/2,size/2);
+	grad.addColorStop(0,'rgba(150,180,255,0.6)');
+	grad.addColorStop(0.35,'rgba(140,170,255,0.18)');
+	grad.addColorStop(1,'rgba(0,0,0,0)');
+	ctx.fillStyle = grad; ctx.fillRect(0,0,size,size);
+	const tex = new THREE.CanvasTexture(canvas);
+	tex.minFilter = THREE.LinearFilter; tex.generateMipmaps = false;
+	const mat = new THREE.SpriteMaterial({
+		map: tex,
+		color: 0xffffff,
+		transparent: true,
+		opacity: 0.45,
+		blending: THREE.AdditiveBlending,
+		depthWrite: false,
+		depthTest: false
+	});
+	const sprite = new THREE.Sprite(mat);
+	sprite.scale.set(radius*2.6, radius*2.6, 1);
+	sprite.frustumCulled = false;
+	scene.add(sprite);
+	return sprite;
+}
+const galaxyA=createGalaxy(MW_RADIUS);
+const galaxyB=createGalaxy(M31_RADIUS);
+const haloA=createHalo(MW_RADIUS*1.8);
+const haloB=createHalo(M31_RADIUS*1.8);
+const coreA=new THREE.Mesh(
+new THREE.SphereGeometry(12,16,16),
+new THREE.MeshBasicMaterial({color:0x446688})
+);
+scene.add(coreA);
+const coreB=new THREE.Mesh(
+new THREE.SphereGeometry(15,16,16),
+new THREE.MeshBasicMaterial({color:0x885544})
+);
+scene.add(coreB);
+const bgGeo=new THREE.BufferGeometry();
+const bg=[];
+for(let i=0;i<15000;i++){
+bg.push(
+(Math.random()-.5)*50000,
+(Math.random()-.5)*50000,
+(Math.random()-.5)*50000
+);
+}
+bgGeo.setAttribute("position",new THREE.Float32BufferAttribute(bg,3));
+const bgStars=new THREE.Points(
+bgGeo,
+new THREE.PointsMaterial({size:1,color:"white"})
+);
+scene.add(bgStars);
+bgStars.frustumCulled = false;
+let epoch=0;
+let cinematic=false;
+let mergedGalaxy=null;
+let isMerged=false;
+let mergeTriggered=false;
+let mergeEffectTime=0;
+const MERGE_EFFECT_DUR=3.2; // seconds
+const MERGE_BURST_COUNT=1200; // particles for explosive burst
+const mergeCameraOrig = new THREE.Vector3();
+const mergeCameraTarget = new THREE.Vector3(0,300,1200);
+const flashEl = document.getElementById('flash');
+const infoBtn = document.getElementById('infoBtn');
+const infoPanel = document.getElementById('infoPanel');
+const infoContent = document.getElementById('infoContent');
+const closeInfo = document.getElementById('closeInfo');
+const narrateBtn = document.getElementById('narrateBtn');
+const languageSelect = document.getElementById('languageSelect');
+const voiceSelect = document.getElementById('voiceSelect');
+let voicesList = [];
+
+const INFO_TEXTS = {
+	'en': `History: The Milky Way and Andromeda began as separate galaxies billions of years ago. Over cosmic time gravitational attraction brought them closer, perturbing each other's stellar orbits and gas.
+
+What happened: As the two disks interpenetrated they produced tidal tails, bursts of star formation, and ultimately the coalescence of the two central regions into a single, larger galaxy (sometimes called "Milkomeda").
+
+Physics: Gravity governs the dynamics. Stars rarely collide directly but are redistributed by changing gravitational potentials; gas can shock and compress, feeding star formation and the central black holes. Energy is redistributed through dynamical friction, tidal stripping, and violent relaxation.
+
+Aftermath: The merged galaxy will relax over many hundreds of millions to billions of years. Central black holes may merge, producing a larger supermassive black hole and potentially powering an active galactic nucleus (AGN) with jets and bright accretion emission.`,
+	'es': `Historia: La Vía Láctea y Andrómeda comenzaron como galaxias separadas hace miles de millones de años. Con el tiempo cósmico, la atracción gravitatoria las acercó, perturbando las órbitas estelares y el gas.
+
+Qué pasó: Cuando los dos discos se penetraron, produjeron colas de marea, estallidos de formación estelar y, en última instancia, la fusión de las dos regiones centrales en una sola galaxia mayor (a veces llamada "Milkomeda").
+
+Física: La gravedad gobierna la dinámica. Las estrellas rara vez colisionan directamente, pero se redistribuyen debido a los cambios en el potencial gravitacional; el gas puede chocar y comprimirse, alimentando la formación de estrellas y los agujeros negros centrales. La energía se redistribuye mediante fricción dinámica, estrangulamiento de mareas y relajación violenta.
+
+Consecuencias: La galaxia fusionada se relajará durante cientos de millones o miles de millones de años. Los agujeros negros centrales pueden fusionarse, produciendo un agujero negro supermasivo mayor y posiblemente alimentando un núcleo galáctico activo (AGN) con chorros y emisión brillante.`,
+	'fr': `Histoire : La Voie lactée et Andromède ont commencé comme des galaxies séparées il y a des milliards d'années. Au fil du temps cosmique, l'attraction gravitationnelle les a rapprochées, perturbant les orbites stellaires et le gaz.
+
+Ce qui s'est passé : Lorsque les deux disques se sont entremêlés, ils ont produit des queues de marée, des éclats de formation stellaire et, finalement, la coalescence des deux régions centrales en une seule galaxie plus grande (parfois appelée « Milkomeda »).
+
+Physique : La gravité régit la dynamique. Les étoiles entrent rarement en collision directe, mais elles sont redistribuées par les potentiels gravitationnels changeants ; le gaz peut entrer en collision et se comprimer, alimentant la formation d'étoiles et les trous noirs centraux. L'énergie est redistribuée par frottement dynamique, perturbations de marée et relaxation violente.
+
+Après coup : La galaxie fusionnée se diluera sur des centaines de millions à des milliards d'années. Les trous noirs centraux peuvent fusionner, produisant un trou noir supermassif plus grand et alimentant potentiellement un noyau actif galactique (AGN) avec des jets et une émission brillante.`,
+	'de': `Geschichte: Die Milchstraße und Andromeda begannen vor Milliarden von Jahren als getrennte Galaxien. Im kosmischen Lauf zog sie die Schwerkraft näher zusammen und störte dabei ihre Sternbahnen und das Gas.
+
+Was geschah: Als sich die beiden Scheiben durchdrangen, entstanden Gezeitenschweife, Sternentstehungsausbrüche und schließlich die Verschmelzung der beiden Zentralregionen zu einer einzigen größeren Galaxie (manchmal „Milkomeda“ genannt).
+
+Physik: Die Schwerkraft bestimmt die Dynamik. Sterne kollidieren selten direkt, werden aber durch wechselnde Gravitationspotentiale umverteilt; Gas kann stoßen und sich verdichten, Sternentstehung und die zentralen Schwarzen Löcher speisen. Energie wird durch dynamische Reibung, Gezeitenstreifen und gewaltsame Relaxation verteilt.
+
+Nachwirkungen: Die verschmolzene Galaxie wird sich über hunderte Millionen bis Milliarden Jahre entspannen. Die zentralen Schwarzen Löcher können verschmelzen, wodurch ein größeres supermassereiches Schwarzes Loch entsteht und möglicherweise ein aktives galaktisches Zentrum (AGN) mit Jet-Emission speist.`
+};
+
+function getCurrentInfoText(){
+	const lang = (languageSelect && languageSelect.value) || 'en';
+	return INFO_TEXTS[lang] || INFO_TEXTS.en;
+}
+
+function showInfoPanel(){
+	infoContent.innerHTML = getCurrentInfoText().split('\n\n').map(s=>`<p>${s}</p>`).join('');
+	infoPanel.style.display = 'block';
+}
+function hideInfoPanel(){
+	infoPanel.style.display = 'none';
+}
+if(infoBtn) infoBtn.addEventListener('click', ()=>{
+	infoPanel.style.display = infoPanel.style.display === 'block' ? 'none' : 'block';
+	if(infoPanel.style.display === 'block') showInfoPanel();
+});
+if(closeInfo) closeInfo.addEventListener('click', ()=> hideInfoPanel());
+
+function filterVoicesByLanguage(lang){
+	return voicesList.filter(v=>v.lang.toLowerCase().startsWith(lang.toLowerCase()));
+}
+
+function populateVoices(){
+	if(!voiceSelect || !window.speechSynthesis) return;
+	voicesList = window.speechSynthesis.getVoices() || [];
+	const lang = (languageSelect && languageSelect.value) ? languageSelect.value : 'en';
+	let filtered = filterVoicesByLanguage(lang);
+	if(filtered.length === 0){
+		filtered = voicesList;
+	}
+	if(filtered.length === 0){
+		voiceSelect.innerHTML = '<option value="-1">No voices available</option>';
+		voiceSelect.disabled = true;
+		return;
+	}
+	voiceSelect.disabled = false;
+	voiceSelect.innerHTML = filtered.map((v,i)=>`<option value="${voicesList.indexOf(v)}">${v.name} (${v.lang})${v.default? ' — default':''}</option>`).join('');
+	const defaultIdx = filtered.findIndex(v=>v.default);
+	voiceSelect.value = defaultIdx >= 0 ? voicesList.indexOf(filtered[defaultIdx]) : voicesList.indexOf(filtered[0]);
+}
+if(window.speechSynthesis){
+	populateVoices();
+	window.speechSynthesis.onvoiceschanged = populateVoices;
+}
+if(languageSelect) languageSelect.addEventListener('change', ()=>{
+	populateVoices();
+	if(infoPanel.style.display === 'block') showInfoPanel();
+});
+
+function triggerMergeEffect(position){
+	mergeTriggered = true;
+	mergeEffectTime = MERGE_EFFECT_DUR;
+	mergeCameraOrig.copy(camera.position);
+	// lock controls during effect
+	if(controls) controls.enabled = false;
+	// big particle burst
+	for(let i=0;i<MERGE_BURST_COUNT;i++){
+		const dir = new THREE.Vector3((Math.random()-0.5), (Math.random()-0.2), (Math.random()-0.5)).normalize();
+		const speed = 300 + Math.random()*1200;
+		const vel = dir.multiplyScalar(speed);
+		const worldPos = position.clone().addScaledVector(dir, 20 + Math.random()*120);
+		const color = new THREE.Color().setHSL(0.08 + Math.random()*0.1, 0.8, 0.5 + Math.random()*0.3);
+		tailSystem.emit(worldPos, vel, color, 1.8 + Math.random()*2.2);
+	}
+	// initial bright flash
+	if(flashEl) flashEl.style.opacity = '1';
+}
+
+// Info panel content and narration
+// Narration using browser SpeechSynthesis
+let synthUtterance = null;
+narrateBtn.addEventListener('click', ()=>{
+	if(!window.speechSynthesis) return alert('Speech synthesis not supported in this browser.');
+	if(synthUtterance){ window.speechSynthesis.cancel(); synthUtterance = null; narrateBtn.textContent = '🔊 Narrate'; return; }
+	synthUtterance = new SpeechSynthesisUtterance(getCurrentInfoText());
+	const voiceIdx = (voiceSelect && voiceSelect.value) ? Number(voiceSelect.value) : -1;
+	if(window.speechSynthesis && voicesList && voicesList.length>0 && voiceIdx >= 0 && voicesList[voiceIdx]){
+		synthUtterance.voice = voicesList[voiceIdx];
+	} else if(window.speechSynthesis && voicesList && voicesList.length > 0) {
+		synthUtterance.voice = voicesList[0];
+	}
+	synthUtterance.rate = 1.0;
+	synthUtterance.pitch = 1.0;
+	synthUtterance.volume = 1.0;
+	synthUtterance.onend = ()=>{ synthUtterance = null; narrateBtn.textContent = '🔊 Narrate'; };
+	narrateBtn.textContent = '⏹️ Stop';
+	window.speechSynthesis.cancel();
+	window.speechSynthesis.speak(synthUtterance);
+});
+
+
+// SMBH / AGN visuals
+const agnButton = document.getElementById('showAGN');
+let agnActive = false;
+const smbhGroup = new THREE.Group();
+// small black sphere for SMBH
+const smbhCore = new THREE.Mesh(new THREE.SphereGeometry(6,16,16), new THREE.MeshBasicMaterial({color:0x000000}));
+smbhGroup.add(smbhCore);
+// accretion torus (glowing ring)
+const ringGeo = new THREE.TorusGeometry(18,4,12,64);
+const ringMat = new THREE.MeshBasicMaterial({color:0xffaa66,transparent:true,opacity:0.5,blending:THREE.AdditiveBlending});
+const ring = new THREE.Mesh(ringGeo, ringMat);
+ring.rotation.x = Math.PI/2 * 0.95;
+smbhGroup.add(ring);
+// jets (two cones)
+const coneGeo = new THREE.ConeGeometry(8,120,32);
+const jetMat = new THREE.MeshBasicMaterial({color:0xffeecc,transparent:true,opacity:0.85,blending:THREE.AdditiveBlending,depthWrite:false});
+const jet1 = new THREE.Mesh(coneGeo, jetMat);
+const jet2 = new THREE.Mesh(coneGeo, jetMat);
+jet1.position.set(0,70,0); jet2.position.set(0,-70,0);
+jet1.rotation.x = Math.PI; // flip
+smbhGroup.add(jet1); smbhGroup.add(jet2);
+smbhGroup.visible = false;
+smbhGroup.frustumCulled = false;
+scene.add(smbhGroup);
+
+agnButton.addEventListener('click',()=>{
+	agnActive = !agnActive;
+	smbhGroup.visible = agnActive;
+	agnButton.textContent = agnActive? '🔴 Hide SMBH / AGN' : '🌑 Show SMBH / AGN';
+	if(agnActive){
+		bloom.strength += 2.0;
+		// emit a focused accretion glow
+		for(let i=0;i<300;i++){
+			const dir = new THREE.Vector3((Math.random()-0.5),(Math.random()-0.3),(Math.random()-0.5)).normalize();
+			const vel = dir.multiplyScalar(60 + Math.random()*220);
+			const worldPos = new THREE.Vector3().copy(smbhGroup.position).addScaledVector(dir, 10 + Math.random()*40);
+			const color = new THREE.Color(1.0,0.85,0.7);
+			tailSystem.emit(worldPos, vel, color, 0.7 + Math.random()*1.6);
+		}
+	} else {
+		bloom.strength = Math.max(1.0, bloom.strength - 2.0);
+	}
+});
+
+// --- Physics (two-body) setup ---
+// physical constants and conversions
+const YEAR = 31557600; // seconds
+const LY_M = 9.4607e15; // meters in a light-year
+const MSUN = 1.98847e30; // kg
+const G_SI = 6.67430e-11; // m^3 kg^-1 s^-2
+
+// approximate galaxy masses (solar masses) - adjustable
+const MW_MASS_SOLAR = 1.5e12;
+const M31_MASS_SOLAR = 1.5e12;
+const MW_MASS = MW_MASS_SOLAR * MSUN;
+const M31_MASS = M31_MASS_SOLAR * MSUN;
+
+// helper converters between scene units and meters
+function sceneToMeters(v){ // THREE.Vector3 in scene units -> meters
+	return new THREE.Vector3(v.x / SCALE * LY_M, v.y / SCALE * LY_M, v.z / SCALE * LY_M);
+}
+function metersToSceneVec3(v){ // THREE.Vector3 in meters -> scene units
+	return new THREE.Vector3(v.x * SCALE / LY_M, v.y * SCALE / LY_M, v.z * SCALE / LY_M);
+}
+
+// state in SI units (meters, m/s)
+let phys = {
+	posA: new THREE.Vector3(),
+	posB: new THREE.Vector3(),
+	velA: new THREE.Vector3(),
+	velB: new THREE.Vector3()
+};
+
+// initialize physical state from current scene positions
+function resetPhysics(){
+	const pa = sceneToMeters(galaxyA.position);
+	const pb = sceneToMeters(galaxyB.position);
+	phys.posA.copy(pa);
+	phys.posB.copy(pb);
+	// initial radial velocities from DATA.approachVelocity (assumed km/s)
+	const vRel = DATA.approachVelocity * 1000; // m/s
+	// set equal and opposite velocities along x towards each other
+	const dir = phys.posB.clone().sub(phys.posA).normalize();
+	phys.velA.copy(dir).multiplyScalar(vRel * 0.5);
+	phys.velB.copy(dir).multiplyScalar(-vRel * 0.5);
+}
+
+// integrate to a target time (seconds) with coarse timestep suitable for Gyr spans
+function integrateToTime(targetT){
+	// basic symplectic (leapfrog) integrator
+	resetPhysics();
+	if(targetT <= 0) return;
+	// choose dt ~ 1e6 years in seconds, but limit steps
+	const dt = 1e6 * YEAR; // seconds
+	let steps = Math.ceil(targetT / dt);
+	if(steps > 6000) steps = 6000; // cap for performance
+	const realDt = targetT / steps;
+	for(let i=0;i<steps;i++){
+		// compute acceleration at current positions
+		const r = phys.posB.clone().sub(phys.posA);
+		const dist2 = r.lengthSq() + (1e18); // softening ~1e9 km
+		const dist = Math.sqrt(dist2);
+		const aA = r.clone().multiplyScalar(G_SI * M31_MASS / (dist2 * dist));
+		const aB = r.clone().multiplyScalar(-G_SI * MW_MASS / (dist2 * dist));
+		// half kick
+		phys.velA.addScaledVector(aA, realDt*0.5);
+		phys.velB.addScaledVector(aB, realDt*0.5);
+		// drift
+		phys.posA.addScaledVector(phys.velA, realDt);
+		phys.posB.addScaledVector(phys.velB, realDt);
+		// recompute accel
+		const r2 = phys.posB.clone().sub(phys.posA);
+		const dist22 = r2.lengthSq() + (1e18);
+		const dist2t = Math.sqrt(dist22);
+		const aA2 = r2.clone().multiplyScalar(G_SI * M31_MASS / (dist22 * dist2t));
+		const aB2 = r2.clone().multiplyScalar(-G_SI * MW_MASS / (dist22 * dist2t));
+		// half kick
+		phys.velA.addScaledVector(aA2, realDt*0.5);
+		phys.velB.addScaledVector(aB2, realDt*0.5);
+	}
+	// apply converted positions back to scene
+	const sA = metersToSceneVec3(phys.posA);
+	const sB = metersToSceneVec3(phys.posB);
+	galaxyA.position.copy(sA);
+	galaxyB.position.copy(sB);
+	haloA.position.copy(sA);
+	haloB.position.copy(sB);
+	coreA.position.copy(sA);
+	coreB.position.copy(sB);
+}
+
+// Parametric, NASA-inspired orbital interpolation for smooth, ordered motion
+function updateGalaxyPositionsFromProgress(p){
+	// p in [0,1]
+	const easeP = Math.pow(p, 0.65);
+	const sep = START_DISTANCE * (1 - easeP);
+	const theta = p * Math.PI * 1.8; // angular winding during approach
+	const tilt = 0.22; // tilt factor for z motion
+	const xA = -Math.cos(theta) * sep * 0.5;
+	const zA = Math.sin(theta) * sep * 0.5 * tilt;
+	const yA = Math.sin(p * Math.PI) * 40;
+	const xB = Math.cos(theta) * sep * 0.5;
+	const zB = -Math.sin(theta) * sep * 0.5 * tilt;
+	const yB = Math.cos(p * Math.PI) * 30;
+	galaxyA.position.set(xA, yA, zA);
+	galaxyB.position.set(xB, yB, zB);
+	haloA.position.copy(galaxyA.position);
+	haloB.position.copy(galaxyB.position);
+	coreA.position.copy(galaxyA.position);
+	coreB.position.copy(galaxyB.position);
+}
+
+function createMergedGalaxy(radius){
+	const group=new THREE.Group();
+	const sprite=makeSprite();
+
+	// bright core
+	const coreGeo=new THREE.BufferGeometry();
+	const coreCount=1200;
+	const pos=new Float32Array(coreCount*3);
+	const col=new Float32Array(coreCount*3);
+	for(let i=0;i<coreCount;i++){
+		const i3=i*3;
+		const r=Math.pow(Math.random(),0.5)*(radius*0.12);
+		const a=Math.random()*Math.PI*2;
+		pos[i3]=Math.cos(a)*r*(1+Math.random()*0.2);
+		pos[i3+1]=(Math.random()-0.5)*6;
+		pos[i3+2]=Math.sin(a)*r*(1+Math.random()*0.2);
+		const c=new THREE.Color().setHSL(0.08,0.9,0.6 + Math.random()*0.15);
+		col[i3]=c.r;col[i3+1]=c.g;col[i3+2]=c.b;
+	}
+	coreGeo.setAttribute('position',new THREE.BufferAttribute(pos,3));
+	coreGeo.setAttribute('color',new THREE.BufferAttribute(col,3));
+	const coreMat=new THREE.PointsMaterial({map:sprite,size:8,vertexColors:true,transparent:true,opacity:1,blending:THREE.AdditiveBlending,depthWrite:false});
+	const corePoints=new THREE.Points(coreGeo,coreMat);
+	group.add(corePoints);
+
+	// long spiral arms made with multiple layers
+	const arms=5;
+	for(let layer=0;layer<4;layer++){
+		const layerGeo=new THREE.BufferGeometry();
+		const layerCount=Math.floor(8000/(layer+1));
+		const lpos=new Float32Array(layerCount*3);
+		const lcol=new Float32Array(layerCount*3);
+		for(let i=0;i<layerCount;i++){
+			const i3=i*3;
+			const t=i/layerCount;
+			const arm=(i%arms)*(Math.PI*2/arms);
+			const rr=Math.pow(t,0.6)*radius*(0.5+layer*0.25) + Math.random()*30;
+			const spin=rr*0.03*(1+layer*0.3);
+			const angle=arm + spin + t*6.0 + (Math.random()-0.5)*0.6;
+			lpos[i3]=Math.cos(angle)*rr + (Math.random()-0.5)*40;
+			lpos[i3+1]=(Math.random()-0.5)*(10+layer*6);
+			lpos[i3+2]=Math.sin(angle)*rr + (Math.random()-0.5)*40;
+			const c=new THREE.Color().setHSL(0.6 - layer*0.08 + Math.random()*0.05, 0.8, 0.6 - layer*0.05);
+			lcol[i3]=c.r; lcol[i3+1]=c.g; lcol[i3+2]=c.b;
+		}
+		layerGeo.setAttribute('position',new THREE.BufferAttribute(lpos,3));
+		layerGeo.setAttribute('color',new THREE.BufferAttribute(lcol,3));
+		const mat=new THREE.PointsMaterial({map:sprite,size:2.0+layer*1.2,vertexColors:true,transparent:true,opacity:0.9-(layer*0.12),blending:THREE.AdditiveBlending,depthWrite:false});
+		const pts=new THREE.Points(layerGeo,mat);
+		group.add(pts);
+	}
+
+	// ensure merged group isn't culled and materials behave
+	group.traverse((c)=>{ if(c.isPoints||c.isMesh){ c.frustumCulled=false; if(c.material){ c.material.depthWrite=false; c.material.depthTest=true; } } });
+
+	// gentle rotation update hook
+	group.userData.update=(dt)=>{
+		group.rotation.y += 0.0006;
+		group.rotation.x += Math.sin(Date.now()*0.0001)*0.00005;
+	};
+
+	scene.add(group);
+	return group;
+}
+
+// Tail and trail particle system for tidal effects
+class TailSystem{
+	constructor(scene,sprite,max=16000){
+		this.scene=scene;
+		this.max=max;
+		this.positions=new Float32Array(max*3);
+		this.colors=new Float32Array(max*3);
+		this.baseColors=new Float32Array(max*3);
+		this.vel=new Float32Array(max*3);
+		this.life=new Float32Array(max);
+		this.maxLife=new Float32Array(max);
+		this.count=0;
+		this.ptr=0;
+		const geo=new THREE.BufferGeometry();
+		geo.setAttribute('position',new THREE.BufferAttribute(this.positions,3).setUsage(THREE.DynamicDrawUsage));
+		geo.setAttribute('color',new THREE.BufferAttribute(this.colors,3).setUsage(THREE.DynamicDrawUsage));
+		this.mat=new THREE.PointsMaterial({map:sprite,size:2.8,vertexColors:true,transparent:true,opacity:1,blending:THREE.AdditiveBlending,depthWrite:false,sizeAttenuation:true});
+		this.points=new THREE.Points(geo,this.mat);
+		scene.add(this.points);
+	}
+	emit(position,velocity,color,life){
+		const i=this.ptr;
+		const i3=i*3;
+		this.positions[i3]=position.x; this.positions[i3+1]=position.y; this.positions[i3+2]=position.z;
+		this.vel[i3]=velocity.x; this.vel[i3+1]=velocity.y; this.vel[i3+2]=velocity.z;
+		this.baseColors[i3]=color.r; this.baseColors[i3+1]=color.g; this.baseColors[i3+2]=color.b;
+		this.colors[i3]=color.r; this.colors[i3+1]=color.g; this.colors[i3+2]=color.b;
+		this.life[i]=life; this.maxLife[i]=life;
+		this.ptr=(this.ptr+1)%this.max;
+		if(this.count < this.max) this.count++;
+	}
+	emitTrail(position,velocity,color,life,segments=4,spacing=0.02){
+		// emit a short chain of fading particles behind the source
+		for(let s=0;s<segments;s++){
+			const p=new THREE.Vector3().copy(position).addScaledVector(velocity,-spacing*s);
+			const v=new THREE.Vector3().copy(velocity).multiplyScalar(0.25 + Math.random()*0.5);
+			const c=color.clone().multiplyScalar(0.6 - s*0.12);
+			this.emit(p,v,c,life*(0.4 + Math.random()*0.6));
+		}
+	}
+	update(dt){
+		const pos=this.positions, col=this.colors, base=this.baseColors, vel=this.vel, life=this.life, maxL=this.maxLife;
+		for(let i=0;i<this.count;i++){
+			if(life[i] > 0){
+				const i3=i*3;
+				pos[i3]+=vel[i3]*dt;
+				pos[i3+1]+=vel[i3+1]*dt;
+				pos[i3+2]+=vel[i3+2]*dt;
+				life[i]-=dt;
+				const r=Math.max(0, life[i]/maxL[i]);
+				// fade color by life ratio
+				col[i3]=base[i3]*r;
+				col[i3+1]=base[i3+1]*r;
+				col[i3+2]=base[i3+2]*r;
+			}
+		}
+		this.points.geometry.attributes.position.needsUpdate=true;
+		this.points.geometry.attributes.color.needsUpdate=true;
+	}
+}
+
+const tailSystem = new TailSystem(scene, makeSprite(), 18000);
+let lastTime = performance.now();
+document.getElementById("epoch").addEventListener("input",e=>{
+epoch=Number(e.target.value);
+document.getElementById("epochLabel").textContent=epoch.toFixed(2)+" Billion Years";
+// integrate physics to this epoch time (convert Gyr -> seconds)
+const tSeconds = epoch * 1e9 * YEAR;
+integrateToTime(tSeconds);
+});
+document.getElementById("tour").onclick=()=>cinematic=!cinematic;
+function stage(p){
+if(p<.3)return "Approach";
+if(p<.6)return "First Encounter";
+if(p<.9)return "Galactic Merger";
+return "Milkomeda";
+}
+function animate(){
+requestAnimationFrame(animate);
+const now=performance.now();
+const dt=(now-lastTime)/1000; lastTime=now;
+const progress=epoch/4.5;
+// update positions from parametric orbital model for stable, ordered motion
+updateGalaxyPositionsFromProgress(progress);
+galaxyA.rotation.y+=0.001;
+galaxyB.rotation.y-=0.0015;
+bgStars.rotation.y+=0.00005;
+scene.rotation.y+=0.00002;
+if(cinematic){
+const t=performance.now()*0.00015;
+camera.position.x=Math.cos(t)*5000;
+camera.position.z=Math.sin(t)*5000;
+camera.position.y=1200;
+camera.lookAt(0,0,0);
+}
+const s=stage(progress);
+document.getElementById("facts").innerHTML=`
+Distance: ${(DATA.currentDistance*(1-progress)/1000000).toFixed(2)} Million LY<br><br>
+Stage: ${s}<br><br>
+Merger Progress: ${(progress*100).toFixed(0)}%
+`;
+// handle merged galaxy when near completion
+const mergeThreshold=0.95;
+if(progress>=mergeThreshold){
+	if(!isMerged){
+		// hide originals
+		galaxyA.visible=false; galaxyB.visible=false;
+		haloA.visible=false; haloB.visible=false;
+		coreA.visible=false; coreB.visible=false;
+		mergedGalaxy=createMergedGalaxy((MW_RADIUS+M31_RADIUS)*0.9);
+		isMerged=true;
+		// trigger dramatic merge effect at creation
+		triggerMergeEffect(new THREE.Vector3(0,0,0));
+		if(agnButton) agnButton.style.display = 'inline-block';
+	}
+	// animate merged galaxy if available
+	if(mergedGalaxy && mergedGalaxy.userData.update) mergedGalaxy.userData.update(0);
+	if(mergeTriggered && mergeEffectTime > 0){
+		mergeEffectTime -= dt;
+		const t = 1 - Math.max(0, mergeEffectTime / MERGE_EFFECT_DUR);
+		// camera dolly toward merge
+		camera.position.lerpVectors(mergeCameraOrig, mergeCameraTarget, Math.min(1, t));
+		camera.lookAt(0,0,0);
+		// bloom spike decaying over effect
+		bloom.strength = 3.0 + (1 - mergeEffectTime / MERGE_EFFECT_DUR) * 6.0;
+		// show flash overlay fading
+		if(flashEl) flashEl.style.opacity = String(Math.max(0, mergeEffectTime / MERGE_EFFECT_DUR));
+		// emit extra sparks during the peak
+		const extra = Math.floor(90 * dt);
+		for(let i=0;i<extra;i++){
+			const dir = new THREE.Vector3((Math.random()-0.5),(Math.random()-0.2),(Math.random()-0.5)).normalize();
+			const vel = dir.multiplyScalar(400 + Math.random()*1200);
+			const worldPos = new THREE.Vector3(0,0,0).addScaledVector(dir, 30 + Math.random()*140);
+			const color = new THREE.Color().setHSL(0.08 + Math.random()*0.12, 0.85, 0.5 + Math.random()*0.3);
+			tailSystem.emit(worldPos, vel, color, 1.2 + Math.random()*2.6);
+		}
+		// emphasize merged galaxy rotation during effect
+		if(mergedGalaxy) mergedGalaxy.rotation.y += 0.02;
+		if(mergeEffectTime <= 0){
+			mergeTriggered = false;
+			if(controls) controls.enabled = true;
+			if(flashEl) flashEl.style.opacity = '0';
+			bloom.strength = 3.0;
+		}
+	} else {
+		bloom.strength = 3.0;
+	}
+
+	// SMBH / AGN animations
+	if(smbhGroup.visible){
+		ring.rotation.z += 0.02;
+		const pulse = 0.9 + 0.2*Math.sin(performance.now()*0.01);
+		jet1.scale.set(1, pulse, 1);
+		jet2.scale.set(1, pulse, 1);
+		jetMat.opacity = 0.6 + 0.4*(pulse-0.9);
+	}
+} else {
+	if(isMerged){
+		// remove merged and show originals
+		if(mergedGalaxy){ scene.remove(mergedGalaxy); mergedGalaxy=null; }
+		galaxyA.visible=true; galaxyB.visible=true;
+		haloA.visible=true; haloB.visible=true;
+		coreA.visible=true; coreB.visible=true;
+		isMerged=false;
+		if(agnButton) {
+			agnButton.style.display = 'none';
+			agnActive = false;
+			smbhGroup.visible = false;
+		}
+	}
+	if(flashEl) flashEl.style.opacity = '0';
+	mergeTriggered = false;
+	mergeEffectTime = 0;
+	bloom.strength=(s==="Milkomeda")?2.2:1.2;
+}
+	// emit tidal tail particles as galaxies approach
+	const emitIntensity = Math.max(0, Math.min(1, progress));
+	const emitCount = Math.floor(2 + emitIntensity*28);
+	for(let e=0;e<emitCount;e++){
+		// pick edge point on galaxy A
+		const angle = Math.random()*Math.PI*2;
+		const r = MW_RADIUS*(0.5 + Math.random()*0.5);
+		const localPosA = new THREE.Vector3(Math.cos(angle)*r, (Math.random()-0.5)*8, Math.sin(angle)*r);
+		const worldPosA = localPosA.clone().add(galaxyA.position);
+		const dirA = worldPosA.clone().sub(galaxyB.position).normalize();
+		const speedA = 60 + Math.random()*220;
+		const velA = dirA.multiplyScalar(speedA);
+		const colorA = new THREE.Color(0.9,0.85,1.0).lerp(new THREE.Color(starColor()), Math.random()*0.6);
+		tailSystem.emit(worldPosA, velA, colorA, 1.2 + Math.random()*2.8);
+		if(Math.random() < 0.12) tailSystem.emitTrail(worldPosA, velA, colorA, 0.9, 5, 0.015);
+
+		// galaxy B
+		const angleB = Math.random()*Math.PI*2;
+		const rB = M31_RADIUS*(0.5 + Math.random()*0.5);
+		const localPosB = new THREE.Vector3(Math.cos(angleB)*rB, (Math.random()-0.5)*10, Math.sin(angleB)*rB);
+		const worldPosB = localPosB.clone().add(galaxyB.position);
+		const dirB = worldPosB.clone().sub(galaxyA.position).normalize();
+		const speedB = 60 + Math.random()*240;
+		const velB = dirB.multiplyScalar(speedB);
+		const colorB = new THREE.Color(1.0,0.9,0.8).lerp(new THREE.Color(starColor()), Math.random()*0.6);
+		tailSystem.emit(worldPosB, velB, colorB, 1.3 + Math.random()*3.0);
+		if(Math.random() < 0.12) tailSystem.emitTrail(worldPosB, velB, colorB, 1.0, 5, 0.017);
+	}
+
+	tailSystem.update(dt);
+controls.update();
+composer.render();
+}
+animate();
+addEventListener("resize",()=>{
+camera.aspect=innerWidth/innerHeight;
+camera.updateProjectionMatrix();
+renderer.setSize(innerWidth,innerHeight);
+composer.setSize(innerWidth,innerHeight);
+});
+</script>
+</body>
+</html>
